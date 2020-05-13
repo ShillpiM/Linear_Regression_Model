@@ -1,0 +1,290 @@
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(dplyr)
+library(statsr)
+library(GGally)
+```
+
+### Load data
+
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+
+
+* * *
+
+## Part 1: Data
+
+The dataset "movies" is comprised of 651 randomly sampled movies produced and released before 2016. This dataset includes information from both [Rotten Tomatoes](https://www.rottentomatoes.com/) and [IMDb](http://www.imdb.com/).
+
+Rotten Tomatoes is a website launched in August 1998 devoted to film reviews and news; it is widely known as a film review aggregator. Coverage now includes TV content as well. The name derives from the practice of audiences throwing rotten tomatoes when disapproving of a poor stage performance. The company was created by Senh Duong and since January 2010 has been owned by Flixster, which itself was acquired in 2011 by Warner Bros.
+
+The Internet Movie Database (abbreviated IMDb) is an online database of information related to films, television programs and video games, including cast, production crew, fictional characters, biographies, plot summaries, trivia and reviews. Actors and crew can post their own résumé and upload photos of themselves for a yearly fee. U.S. users can view over 6000 movies and television shows from CBS, Sony, and various independent filmmakers.
+
+This dataset contains information about the type of the movie, genre, runtime, studio, release, critics rating, director and so on.
+
+### Sampling Design
+
+The target population of this dataset is U.S. movies theatrically released between 1970 and 2014. The movies composing this dataset are randomly sampled from two famous Internet databases for movies : Rotten Tomatoes and IMDb.
+
+#### Scope of Inference
+
+From what is described in the points above, it seems pretty clear that the "movies" dataset should be considered the result of an observational retrospective study that uses a random sampling design to select a representative sample from U.S. movies.
+
+#### Generalizability
+
+As it is, our results should be generalizable to all U.S. movies released between 1970 and 2014.
+
+#### Causality
+
+As is well-known, making causal conclusions based on observational data is not recommended. Observational studies are only sufficient to show associations.
+
+* * *
+
+## Part 2: Research question
+
+What makes a movie popular ? It's a difficult question to answer, one simple answer would be the total earnings of the movie (theater entries and DVD sellings). However, our dataset doesn't include the earnings of the different movies it contains, so we have to select another variable that might characterize the popularity of a movie.
+
+Our variable of choice will be the IMDb rating (*imdb_rating*) and/or the audience score (*audience_score*). It is well known that good reviews on IMDb or Rotten Tomatoes are associated with high earnings for a movie.
+
+Our analysis will aim to answer the following research question : "Can we predict the popularity of a movie (*imdb_rating*/*audience_score* variables) by knowing only its type (*title_type* variable), genre (*genre* variable), runtime (*runtime* variable), MPAA rating (*mpaa_rating* variable), release month (*thtr_rel_month* variable), release day (*thtr_rel_day* variable), number of IMDb votes (*imdb_num_votes* variable), critics score (*critics_score* variable) and best picture nomination (*best_pic_nom* variable) ?".
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+### Distribution of the Response Variable
+
+First we will check if there is a high correlation between both our potential response variables : *imdb_rating* and *audience_score*.
+
+```{r}
+cor(movies$imdb_rating, movies$audience_score)
+```
+
+As the correlation between these two variables is pretty high, we may consider only one of them. For our study, we will choose *audience_score* as the response variable.
+
+First of all, we will create a reduced dataset from the "movies" dataset by subsetting for our variables of interest and eliminating all NA values.
+
+```{r}
+movies_reg <- movies %>% select(audience_score, title_type, genre, runtime, mpaa_rating, thtr_rel_month, thtr_rel_day, imdb_num_votes, critics_score, best_pic_nom) %>% filter(runtime != "NA")
+```
+
+Let's begin by plotting a histogram of the response variable.
+
+```{r}
+ggplot(movies_reg, aes(x = audience_score)) + geom_histogram() + xlab("Audience Score") + ylab("Count") + ggtitle("Histogram of Audience Score")
+summary(movies_reg$audience_score)
+```
+
+The distribution of the *audience_score* variable exhibits a left skew and may be uni- or bimodal.
+
+### Boxplots of Response vs. Categorical Predictors
+
+Now, we are able to begin our exploratory data analysis, first we will use boxplots to visualize how our categorical variables of interest interact with the response variable.
+
+```{r}
+ggplot(movies_reg, aes(x = title_type, y = audience_score)) + geom_boxplot() + xlab("Title Type") + ylab("Audience Score") + ggtitle("Audience Score vs. Title Type")
+movies_reg %>% group_by(title_type) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+It seems that the variables *title_type* and the response *audience_score* are associated.
+
+```{r}
+ggplot(movies_reg, aes(x = genre, y = audience_score)) + geom_boxplot() + xlab("Genre") + ylab("Audience Score") + ggtitle("Audience Score vs. Genre") + theme(axis.text.x = element_text(angle = -45, hjust = 0))
+movies_reg %>% group_by(genre) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here also, it seems that the variables *genre* and the response *audience_score* are associated.
+
+```{r}
+ggplot(movies_reg, aes(x = mpaa_rating, y = audience_score)) + geom_boxplot() + xlab("MPAA Rating") + ylab("Audience Score") + ggtitle("Audience Score vs. MPAA Rating")
+movies_reg %>% group_by(mpaa_rating) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here, it is not so clear that the variables *mpaa_rating* and the response *audience_score* are associated. The variable *mpaa_rating* may not be a good predictor for the response.
+
+```{r}
+ggplot(movies_reg, aes(x = best_pic_nom, y = audience_score)) + geom_boxplot() + xlab("Best Picture Nomination") + ylab("Audience Score") + ggtitle("Audience Score vs. Best Picture Nomination")
+movies_reg %>% group_by(best_pic_nom) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here also, it seems that the variables *best_pic_nom* and the response *audience_score* are associated.
+
+We will now update our "movies_reg" dataset to exclude the *mpaa_rating* variable.
+
+```{r}
+#movies_reg <- movies_reg[, -5]
+movies_reg <- movies_reg %>% select(-mpaa_rating)
+```
+
+### Scatterplots of Response vs. Numerical Predictors
+
+Now, we will use scatterplots to visualize how our numerical variables of interest interact with our response variable.
+
+```{r warning = FALSE}
+ggpairs(movies_reg, columns = c(1, 4, 5, 6, 7, 8), axisLabels = "none", columnLabels = c("Score", "Time", "Rel Mth", "Rel Day", "Votes", "Critics"), title = "Pairs of Numerical Variables")
+```
+
+As we may see above, the correlations between predictors are not very high, which is a good thing when modeling with linear regression as it helps avoiding collinearity. We may also note that the variables *thtr_rel_month* and *thtr_rel_day* do not seem to be good predictors for our response variable. Moreover, the distribution of the *imdb_num_votes* variable seem strongly right skewed, so we will transform this variable by using the natural log. 
+
+```{r}
+movies_reg <- movies_reg %>% mutate(log_imdb_num_votes = log(imdb_num_votes)) %>% select(-thtr_rel_day, -thtr_rel_month, -imdb_num_votes)
+```
+
+* * *
+
+## Part 4: Modeling
+
+### Baseline Model
+
+Now we are ready to create our first linear model to predict the response variable. At first, we will include all our variables of interest : *title_type*, *genre*, *runtime*, *log_imdb_num_votes*, *critics_score* and *best_pic_nom*.
+
+```{r}
+lm1 <- lm(audience_score ~ title_type + genre + runtime + log_imdb_num_votes + critics_score + best_pic_nom, data = movies_reg)
+summary(lm1)
+```
+
+In this model, some variables are not statistically significant (their slope is not significantly different from 0) and we have a pretty high adjusted R squared.
+
+### Model Selection
+
+We will now proceed with the variable selection : to select the best model answering our research question, we will perform a backward p-value elimination. It means that we will iteratively eliminate the predictor with the highest p-value. The first predictor to be removed from the model is *runtime*, the resulting model is summarised below.
+
+```{r}
+lm2 <- lm(audience_score ~ title_type + genre + log_imdb_num_votes + critics_score + best_pic_nom, data = movies_reg)
+summary(lm2)
+```
+
+We now have a more model parsimonious model containing 5 predictors with a slightly higher adjusted R squared. The next variable to be eliminated is *title_type*.
+
+```{r}
+lm3 <- lm(audience_score ~ genre + log_imdb_num_votes + critics_score + best_pic_nom, data = movies_reg)
+summary(lm3)
+```
+
+Once again, we obtain a more parsimonious model and a slightly increased adjusted R squared. The next variable to be eliminated is *best_pic_nom*.
+
+```{r}
+lm4 <- lm(audience_score ~ genre + log_imdb_num_votes + critics_score, data = movies_reg)
+summary(lm4)
+```
+
+In this last model, all the predictors are statistically significant, this will be our final model.
+
+```{r}
+lm_movies <- lm4
+summary(lm_movies)
+```
+
+Finally, we get a linear model where nearly all predictors are significant (p-values less than 5%) and a pretty high adjusted R squared.
+
+### Model Diagnostics
+
+Our multiple regression model depends on the following assumptions.
+
+* Each variable is linearly related to the outcome.
+* The residuals of the model are nearly normal.
+* The variablility of the residuals is nearly constant.
+* The residuals are independant.
+
+#### Linear relationships between the response and the predictors
+
+```{r}
+diag_plot1 <- ggplot(lm_movies, aes(x = genre, y = .resid)) + geom_point() + xlab("Genre") + ylab("Residuals") + theme(axis.text.x = element_blank())
+diag_plot2 <- ggplot(lm_movies, aes(x = log_imdb_num_votes, y = .resid)) + geom_point() + xlab("Log of IMDb Votes") + ylab("Residuals")
+diag_plot3 <- ggplot(lm_movies, aes(x = critics_score, y = .resid)) + geom_point() + xlab("Critics Score") + ylab("Residuals")
+grid.arrange(diag_plot1, diag_plot2, diag_plot3, ncol = 2, top = "Residual Plots of Response vs. Predictors")
+```
+
+As we may see in the plots above, the residuals seem randomly scattered around 0.
+
+#### Nearly normal residuals
+
+```{r}
+diag_plot4 <- ggplot(lm_movies, aes(x = .resid)) + geom_histogram() + xlab("Residuals") + ylab("Count") + ggtitle("Histogram of Residuals")
+diag_plot5 <- ggplot(lm_movies, aes(sample = .stdresid)) + stat_qq() + xlab("Theoretical Quantiles") + ylab("Sample Quantiles") + ggtitle("Normal Probability Plot") + geom_abline(colour = "red")
+grid.arrange(diag_plot4, diag_plot5, ncol = 2)
+```
+
+As we may see in the plots above, the residuals seem nearly normally distributed.
+
+#### Near constant variability of residuals
+
+```{r}
+diag_plot6 <- ggplot(lm_movies, aes(x = .fitted, y = .resid)) + geom_point() + xlab("Fitted Values") + ylab("Residuals")
+diag_plot7 <- ggplot(lm_movies, aes(x = .fitted, y = abs(.resid))) + geom_point() + xlab("Fitted Values") + ylab("Absolute Values of Residuals")
+grid.arrange(diag_plot6, diag_plot7, ncol = 2, top = "Plots of Residuals vs. Fitted Values")
+```
+
+The plots above show a little deviation from our hypothesis of homoscedasticity, the variability in the residuals tend to decrease as the fitted values increase. We should keep that in mind when we conclude our study.
+
+#### Independance of residuals
+
+```{r}
+ggplot(fortify(lm_movies), aes(x = seq_along(.resid), y = .resid)) + geom_point() + xlab("Order of Collection") + ylab("Residuals") + ggtitle("Residuals vs. Order of Collection")
+```
+
+The plot above does not show any particulat pattern, so we may assume that the residuals (and consequently the observations) are independant.
+
+### Interpretation of Model Coefficients
+
+Let us examine the coefficients of our model "lm_movies".
+
+```{r}
+summary(lm_movies)
+```
+
+As an example, we will interpret the coefficient of *critics_score* (a numerical variable) and of *genre:animation* (a categorical variable). The other coefficients can be interpreted in much the same way as these two.
+
+#### Coefficient of *critics_score*
+
+The coefficient of the variable *critics_score* is `r summary(lm_movies)$coefficients[13, 1]`. This means that, all else held constant, increasing the critics score by 1 point leads to an increase of approximately `r summary(lm_movies)$coefficients[13, 1]` audience score points on average.
+
+#### Coefficient of *genre:animation*
+
+The coefficient of the variable *genre:animation* is `r summary(lm_movies)$coefficients[2, 1]`. In this case, the baseline level is "Action & Adventure", so this means that, all else held constant, the audience score of "Animation" movies is `r summary(lm_movies)$coefficients[2, 1]` points higher than "Action & Adventure" movies on average.
+
+* * *
+
+## Part 5: Prediction
+
+The movie which audience score we will try to predict is "Captain America : Civil War", the data about this movie is given in the following table.
+
+```{r}
+civil_war <- data.frame(genre = "Action & Adventure", log_imdb_num_votes = log(239859), critics_score = 90)
+```
+
+The *genre* and *log_imdb_num_votes* variables come from the IMDb website and the *critics_score* variable and the response come from the Rotten Tomatoes website. We will now predict the audience score with our model.
+
+```{r}
+civil_war_pred <- predict(lm_movies, newdata = civil_war, interval = "prediction")
+```
+
+Our prediction for the audience score for "Captain America : Civil War" is `r civil_war_pred[1]`. Our 95% prediction interval for this prediction is ]`r civil_war_pred[2]`, `r civil_war_pred[3]`[, this means that we are 95% confident that the actual audience score for "Captain America : Civil War" is between `r civil_war_pred[2]` and `r civil_war_pred[3]`. Actually, the real audience score of "Captain America : Civil War" (as given by Rotten Tomatoes) is 91/100 which is included in our prediction interval.
+
+* * *
+
+## Part 6: Conclusion
+
+In conclusion, we can actually predict the popularity of a movie (as represented by the *audience_score* variable) by knowing only its genre, number of IMDb votes and Rotten Tomatoes critics score. The other variables we were interested in were not significantly related to our response.
+
+This assertion comes from the fact that we were able to build a linear model to predict our response with the three aforementioned statistically significant predictors. However, we must keep in mind that the adjusted R squared of our final model is `r summary(lm_movies)$adj.r.squared`, so this means that roughly `r summary(lm_movies)$adj.r.squared * 100`% of the variability is explained by the model; which is good, but not great. This fact may partially explain why we have a non negligible discrepancy between the audience score predicted by our model and the actual audience score of the "Captain America : Civil War" movie.
+
+Moreover, we should also be aware of the fact that we could not validate our model hypothesis of homoscedasticity; the variablility of the residuals did not exhibit a nearly constant pattern. As the linear model assumptions were not fully respected, we must consider our conclusions with appropriate caution.
